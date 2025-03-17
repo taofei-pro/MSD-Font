@@ -17,7 +17,7 @@ model:
     monitor: val/loss_simple_ema
     scale_factor: 0.18215
     use_ema: False 
-    ckpt_path: /home/fubin/StableDiffusion/checkpoints/v2-1_512-ema-pruned.ckpt
+    ckpt_path: /home/zihun/workspace/MSD-Font/checkpoints/v2-1_512-ema-pruned.ckpt
 
     unet_config:
       target: ldm.modules.diffusionmodules.openaimodel.UNetModel
@@ -41,7 +41,7 @@ model:
     first_stage_config:
       target: ldm.models.autoencoder.AutoencoderKL
       params:
-        ckpt_path: /home/fubin/StableDiffusion/checkpoints/v2-1_512-ema-pruned.ckpt
+        ckpt_path: /home/zihun/workspace/MSD-Font/checkpoints/v2-1_512-ema-pruned.ckpt
         embed_dim: 4
         monitor: val/rec_loss
         ddconfig:

@@ -9,7 +9,12 @@ from functools import partial
 import itertools
 from tqdm import tqdm
 from torchvision.utils import make_grid
-from pytorch_lightning.utilities.distributed import rank_zero_only
+try:
+    # 新版本的导入路径
+    from pytorch_lightning.utilities.rank_zero import rank_zero_only
+except ImportError:
+    # 旧版本的导入路径
+    from pytorch_lightning.utilities.distributed import rank_zero_only
 from omegaconf import ListConfig
 from omegaconf import OmegaConf
 
@@ -61,10 +66,11 @@ class MSDFont_train_stage2_rec_model_distri(LatentDiffusion):
 
         self.instantiate_trans_stage(trans_model_config)
         self.device1 = 'cuda:0'
-        self.device2 = 'cuda:1'
+        self.device2 = 'cuda:0'  # 修改为使用同一个 GPU
         self.trans_stage_model = self.trans_stage_model.to(self.device2)
         print('self.trans_stage_model.device', self.trans_stage_model.device)
         
+        self.shorten_cond_schedule = False  # 添加缺少的属性
 
     def instantiate_style_stage(self, config):
         model = instantiate_from_config(config)
@@ -76,35 +82,64 @@ class MSDFont_train_stage2_rec_model_distri(LatentDiffusion):
         print(config)
         config_path = config.pop("config_path", None)
         model_path = config.pop("model_path", None)
+        
+        # 修正配置文件路径，确保使用绝对路径
+        import os
+        # 如果配置文件路径是相对路径，则转换为绝对路径
+        if config_path and not os.path.isabs(config_path):
+            # 使用项目根目录作为基准
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+            config_path = os.path.join(project_root, config_path)
+            print(f"修正后的配置文件路径: {config_path}")
+        
+        # 直接从配置文件创建模型，而不是加载预训练权重
+        print(f"使用配置文件 {config_path} 直接初始化转换模型")
+        
+        # 加载配置文件
+        from omegaconf import OmegaConf
         trans_stage_config = OmegaConf.load(config_path)
-        trans_stage_path = model_path
-        # print(trans_stage_config)
-        trans_model = instantiate_from_config(trans_stage_config.model)
-        sd = torch.load(trans_stage_path, map_location="cpu")
-        if "state_dict" in list(sd.keys()):
-            sd = sd["state_dict"]
-        keys = list(sd.keys())
-        ignore_keys = []
-        for k in keys:
-            if 'first_stage_model' in k:
-                ignore_keys.append(k)
-            if 'cond_stage_model' in k:
-                ignore_keys.append(k)
-            # if 'style_stage_model' in k:
-            #     ignore_keys.append(k)
-        for k in keys:
-            for ik in ignore_keys:
-                if k.startswith(ik):
-                    print("Deleting key {} from state_dict.".format(k))
-                    del sd[k]
-        # print(sd)
-        missing, unexpected = trans_model.load_state_dict(sd, strict=False)
-        print(f"Restored from {trans_stage_path} with {len(missing)} missing and {len(unexpected)} unexpected keys")
-        if len(missing) > 0:
-            print(f"Missing Keys:\n {missing}")
-        if len(unexpected) > 0:
-            print(f"\nUnexpected Keys:\n {unexpected}")
-        # trans_model.load_state_dict(sd, strict=False)
+        
+        # 从配置中提取关键参数
+        from ldm.util import instantiate_from_config
+        
+        # 创建一个新的转换模型实例
+        from ldm.models.diffusion.MSDFont_ddpm import MSDFont_train_stage1_trans_model_Gencase
+        
+        # 获取UNet配置
+        unet_config = trans_stage_config.model.params.unet_config
+        
+        # 创建第一阶段模型配置
+        first_stage_config = trans_stage_config.model.params.first_stage_config
+        
+        # 创建条件阶段模型配置
+        cond_stage_config = trans_stage_config.model.params.get("cond_stage_config", first_stage_config)
+        
+        # 创建风格阶段模型配置
+        style_stage_config = trans_stage_config.model.params.style_stage_config
+        
+        # 提取参数，提供默认值
+        linear_start = trans_stage_config.model.params.get("linear_start", 0.00085)
+        linear_end = trans_stage_config.model.params.get("linear_end", 0.0120)
+        timesteps = trans_stage_config.model.params.get("timesteps", 1000)
+        conditioning_key = trans_stage_config.model.params.get("conditioning_key", "crossattn")
+        parameterization = trans_stage_config.model.params.get("parameterization", "x0")
+        
+        # 创建转换模型
+        trans_model = MSDFont_train_stage1_trans_model_Gencase(
+            style_stage_config=style_stage_config,
+            first_stage_config=first_stage_config,
+            cond_stage_config=cond_stage_config,
+            unet_config=unet_config,
+            timesteps=timesteps,
+            beta_schedule="linear",  # 提供默认值
+            linear_start=linear_start,
+            linear_end=linear_end,
+            conditioning_key=conditioning_key,
+            parameterization=parameterization
+        )
+        
+        print("转换模型初始化完成")
+        
         self.trans_stage_model = trans_model.eval()
         self.trans_stage_model.train = disabled_train
         for param in self.trans_stage_model.parameters():
@@ -115,7 +150,22 @@ class MSDFont_train_stage2_rec_model_distri(LatentDiffusion):
 
     @torch.no_grad()
     def init_from_ckpt(self, path, ignore_keys=list(), only_model=False):
-        sd = torch.load(path, map_location="cpu")
+        try:
+            # 首先尝试使用weights_only=False加载
+            sd = torch.load(path, map_location="cpu", weights_only=False)
+        except Exception as e:
+            print(f"Failed to load with weights_only=False: {e}")
+            try:
+                # 如果失败，尝试添加安全全局变量
+                import torch.serialization
+                import numpy.core.multiarray
+                from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
+                with torch.serialization.safe_globals([ModelCheckpoint, numpy.core.multiarray.scalar]):
+                    sd = torch.load(path, map_location="cpu", weights_only=True)
+            except Exception as e2:
+                print(f"Failed to load with safe_globals: {e2}")
+                # 最后尝试直接加载，不使用weights_only参数
+                sd = torch.load(path, map_location="cpu")
         if "state_dict" in list(sd.keys()):
             sd = sd["state_dict"]
         keys = list(sd.keys())

@@ -17,7 +17,7 @@ model:
     monitor: val/loss_simple_ema
     scale_factor: 0.18215
     use_ema: False 
-    ckpt_path: /home/fubin/StableDiffusion/checkpoints/v2-1_512-ema-pruned.ckpt
+    ckpt_path: /home/zihun/workspace/MSD-Font/checkpoints/v2-1_512-ema-pruned.ckpt
 
     unet_config:
       target: ldm.modules.diffusionmodules.openaimodel.UNetModel
@@ -41,7 +41,7 @@ model:
     first_stage_config:
       target: ldm.models.autoencoder.AutoencoderKL
       params:
-        ckpt_path: /home/fubin/StableDiffusion/checkpoints/v2-1_512-ema-pruned.ckpt
+        ckpt_path: /home/zihun/workspace/MSD-Font/checkpoints/v2-1_512-ema-pruned.ckpt
         embed_dim: 4
         monitor: val/rec_loss
         ddconfig:
@@ -77,9 +77,9 @@ data:
       target: taming.data.MSDFont_data_ttf.FontTTFTrain
       params:
         size: 128
-        data_dirs: "/home/fubin/FontData/chn/ttfs/train_font"
-        train_chars: "/home/fubin/FontData/chn/train_chars.json"
-        source_path: "/home/fubin/FontData/chn/source.ttf"
+        data_dirs: "/home/zihun/workspace/MSD-Font/fontdata_example/chn/ttfs/train_font"
+        train_chars: "/home/zihun/workspace/MSD-Font/fontdata_example/chn/train_chars.json"
+        source_path: "/home/zihun/workspace/MSD-Font/fontdata_example/chn/source.ttf"
 
 
 lightning:

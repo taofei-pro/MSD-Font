@@ -14,8 +14,18 @@ from PIL import Image
 from pytorch_lightning import seed_everything
 from pytorch_lightning.trainer import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint, Callback, LearningRateMonitor
-from pytorch_lightning.utilities.distributed import rank_zero_only
-from pytorch_lightning.utilities import rank_zero_info
+try:
+    # 新版本的导入路径
+    from pytorch_lightning.utilities.rank_zero import rank_zero_only
+except ImportError:
+    # 旧版本的导入路径
+    from pytorch_lightning.utilities.distributed import rank_zero_only
+try:
+    # 新版本的导入路径
+    from pytorch_lightning.utilities.rank_zero import rank_zero_info
+except ImportError:
+    # 旧版本的导入路径
+    from pytorch_lightning.utilities import rank_zero_info
 
 from ldm.data.base import Txt2ImgIterableBaseDataset
 from ldm.util import instantiate_from_config
@@ -125,9 +135,13 @@ def get_parser(**parser_kwargs):
 
 def nondefault_trainer_args(opt):
     parser = argparse.ArgumentParser()
-    parser = Trainer.add_argparse_args(parser)
-    args = parser.parse_args([])
-    return sorted(k for k in vars(args) if getattr(opt, k) != getattr(args, k))
+    try:
+        parser = Trainer.add_argparse_args(parser)
+        args = parser.parse_args([])
+        return sorted(k for k in vars(args) if getattr(opt, k) != getattr(args, k))
+    except AttributeError:
+        # 在新版本中，此方法已被移除
+        return []
 
 
 class WrappedDataset(Dataset):
@@ -407,8 +421,14 @@ class CUDACallback(Callback):
         epoch_time = time.time() - self.start_time
 
         try:
-            max_memory = trainer.training_type_plugin.reduce(max_memory)
-            epoch_time = trainer.training_type_plugin.reduce(epoch_time)
+            # 尝试新版本的API
+            if hasattr(trainer, 'strategy'):
+                max_memory = trainer.strategy.reduce(max_memory)
+                epoch_time = trainer.strategy.reduce(epoch_time)
+            # 兼容旧版本的API
+            elif hasattr(trainer, 'training_type_plugin'):
+                max_memory = trainer.training_type_plugin.reduce(max_memory)
+                epoch_time = trainer.training_type_plugin.reduce(epoch_time)
 
             rank_zero_info(f"Average Epoch time: {epoch_time:.2f} seconds")
             rank_zero_info(f"Average Peak memory {max_memory:.2f}MiB")
@@ -490,9 +510,20 @@ if __name__ == "__main__":
     # running as `python main.py`
     # (in particular `main.DataModuleFromConfig`)
     sys.path.append(os.getcwd())
+    
+    # 添加src/taming-transformers到系统路径，以便能够导入taming模块
+    src_path = os.path.join(os.getcwd(), 'src', 'taming-transformers')
+    if os.path.exists(src_path):
+        sys.path.append(src_path)
 
     parser = get_parser()
-    parser = Trainer.add_argparse_args(parser)
+    # 兼容新版本的PyTorch Lightning
+    try:
+        parser = Trainer.add_argparse_args(parser)
+    except AttributeError:
+        # 在新版本中，此方法已被移除
+        # 我们可以跳过这一步，因为命令行参数已经在get_parser中定义
+        pass
 
     opt, unknown = parser.parse_known_args()
     if opt.name and opt.resume:

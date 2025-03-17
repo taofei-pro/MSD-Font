@@ -5,6 +5,14 @@ import torch
 import torchvision
 import pytorch_lightning as pl
 
+# 设置PyTorch序列化安全选项
+import torch.serialization
+import numpy.core.multiarray
+from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
+
+# 允许加载不安全的模型
+torch.serialization.add_safe_globals([ModelCheckpoint, numpy.core.multiarray.scalar])
+
 from packaging import version
 from omegaconf import OmegaConf
 from torch.utils.data import random_split, DataLoader, Dataset, Subset
@@ -14,8 +22,18 @@ from PIL import Image
 from pytorch_lightning import seed_everything
 from pytorch_lightning.trainer import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint, Callback, LearningRateMonitor
-from pytorch_lightning.utilities.distributed import rank_zero_only
-from pytorch_lightning.utilities import rank_zero_info
+try:
+    # 新版本的导入路径
+    from pytorch_lightning.utilities.rank_zero import rank_zero_only
+except ImportError:
+    # 旧版本的导入路径
+    from pytorch_lightning.utilities.distributed import rank_zero_only
+try:
+    # 新版本的导入路径
+    from pytorch_lightning.utilities.rank_zero import rank_zero_info
+except ImportError:
+    # 旧版本的导入路径
+    from pytorch_lightning.utilities import rank_zero_info
 
 from ldm.data.base import Txt2ImgIterableBaseDataset
 from ldm.util import instantiate_from_config
@@ -125,9 +143,13 @@ def get_parser(**parser_kwargs):
 
 def nondefault_trainer_args(opt):
     parser = argparse.ArgumentParser()
-    parser = Trainer.add_argparse_args(parser)
-    args = parser.parse_args([])
-    return sorted(k for k in vars(args) if getattr(opt, k) != getattr(args, k))
+    try:
+        parser = Trainer.add_argparse_args(parser)
+        args = parser.parse_args([])
+        return sorted(k for k in vars(args) if getattr(opt, k) != getattr(args, k))
+    except AttributeError:
+        # 在新版本中，此方法已被移除
+        return []
 
 
 class WrappedDataset(Dataset):
@@ -295,7 +317,7 @@ class ImageLogger(Callback):
         self.batch_freq = batch_frequency
         self.max_images = max_images
         self.logger_log_images = {
-            pl.loggers.TestTubeLogger: self._testtube,
+            pl.loggers.TensorBoardLogger: self._tensorboard,
         }
         self.log_steps = [2 ** n for n in range(int(np.log2(self.batch_freq)) + 1)]
         if not increase_log_steps:
@@ -306,6 +328,17 @@ class ImageLogger(Callback):
         self.log_images_kwargs = log_images_kwargs if log_images_kwargs else {}
         self.log_first_step = log_first_step
 
+    @rank_zero_only
+    def _tensorboard(self, pl_module, images, batch_idx, split):
+        for k in images:
+            grid = torchvision.utils.make_grid(images[k])
+            grid = (grid + 1.0) / 2.0  # -1,1 -> 0,1; c,h,w
+
+            tag = f"{split}/{k}"
+            pl_module.logger.experiment.add_image(
+                tag, grid,
+                global_step=pl_module.global_step)
+                
     @rank_zero_only
     def _testtube(self, pl_module, images, batch_idx, split):
         for k in images:
@@ -380,11 +413,11 @@ class ImageLogger(Callback):
             return True
         return False
 
-    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
         if not self.disabled and (pl_module.global_step > 0 or self.log_first_step):
             self.log_img(pl_module, batch, batch_idx, split="train")
 
-    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
         if not self.disabled and pl_module.global_step > 0:
             self.log_img(pl_module, batch, batch_idx, split="val")
         if hasattr(pl_module, 'calibrate_grad_norm'):
@@ -396,19 +429,39 @@ class CUDACallback(Callback):
     # see https://github.com/SeanNaren/minGPT/blob/master/mingpt/callback.py
     def on_train_epoch_start(self, trainer, pl_module):
         # Reset the memory use counter
-        torch.cuda.reset_peak_memory_stats(trainer.root_gpu)
-        torch.cuda.synchronize(trainer.root_gpu)
+        # 在最新版本的PyTorch Lightning中，使用trainer.strategy.root_device.index
+        try:
+            device_idx = 0
+            if hasattr(trainer, 'strategy') and hasattr(trainer.strategy, 'root_device'):
+                device_idx = trainer.strategy.root_device.index if trainer.strategy.root_device.type == 'cuda' else 0
+            torch.cuda.reset_peak_memory_stats(device_idx)
+            torch.cuda.synchronize(device_idx)
+        except Exception as e:
+            print(f"Warning: Could not reset CUDA memory stats: {e}")
         self.start_time = time.time()
 
     # def on_train_epoch_end(self, trainer, pl_module, outputs):
     def on_train_epoch_end(self, trainer, pl_module):
-        torch.cuda.synchronize(trainer.root_gpu)
-        max_memory = torch.cuda.max_memory_allocated(trainer.root_gpu) / 2 ** 20
+        try:
+            device_idx = 0
+            if hasattr(trainer, 'strategy') and hasattr(trainer.strategy, 'root_device'):
+                device_idx = trainer.strategy.root_device.index if trainer.strategy.root_device.type == 'cuda' else 0
+            torch.cuda.synchronize(device_idx)
+            max_memory = torch.cuda.max_memory_allocated(device_idx) / 2 ** 20
+        except Exception as e:
+            print(f"Warning: Could not calculate CUDA memory usage: {e}")
+            max_memory = 0
         epoch_time = time.time() - self.start_time
 
         try:
-            max_memory = trainer.training_type_plugin.reduce(max_memory)
-            epoch_time = trainer.training_type_plugin.reduce(epoch_time)
+            # 尝试新版本的API
+            if hasattr(trainer, 'strategy'):
+                max_memory = trainer.strategy.reduce(max_memory)
+                epoch_time = trainer.strategy.reduce(epoch_time)
+            # 兼容旧版本的API
+            elif hasattr(trainer, 'training_type_plugin'):
+                max_memory = trainer.training_type_plugin.reduce(max_memory)
+                epoch_time = trainer.training_type_plugin.reduce(epoch_time)
 
             rank_zero_info(f"Average Epoch time: {epoch_time:.2f} seconds")
             rank_zero_info(f"Average Peak memory {max_memory:.2f}MiB")
@@ -464,9 +517,20 @@ if __name__ == "__main__":
     # running as `python main.py`
     # (in particular `main.DataModuleFromConfig`)
     sys.path.append(os.getcwd())
+    
+    # 添加src/taming-transformers到系统路径，以便能够导入taming模块
+    src_path = os.path.join(os.getcwd(), 'src', 'taming-transformers')
+    if os.path.exists(src_path):
+        sys.path.append(src_path)
 
     parser = get_parser()
-    parser = Trainer.add_argparse_args(parser)
+    # 兼容新版本的PyTorch Lightning
+    try:
+        parser = Trainer.add_argparse_args(parser)
+    except AttributeError:
+        # 在新版本中，此方法已被移除
+        # 我们可以跳过这一步，因为命令行参数已经在get_parser中定义
+        pass
 
     opt, unknown = parser.parse_known_args()
     if opt.name and opt.resume:
@@ -549,15 +613,15 @@ if __name__ == "__main__":
                     "id": nowname,
                 }
             },
-            "testtube": {
-                "target": "pytorch_lightning.loggers.TestTubeLogger",
+            "tensorboard": {
+                "target": "pytorch_lightning.loggers.TensorBoardLogger",
                 "params": {
-                    "name": "testtube",
+                    "name": "tensorboard",
                     "save_dir": logdir,
                 }
             },
         }
-        default_logger_cfg = default_logger_cfgs["testtube"]
+        default_logger_cfg = default_logger_cfgs["tensorboard"]
         if "logger" in lightning_config:
             logger_cfg = lightning_config.logger
         else:
@@ -700,7 +764,19 @@ if __name__ == "__main__":
 
         trainer_kwargs["callbacks"] = [instantiate_from_config(callbacks_cfg[k]) for k in callbacks_cfg]
 
-        trainer = Trainer.from_argparse_args(trainer_opt, **trainer_kwargs)
+        # 在新版本的PyTorch Lightning中，from_argparse_args已经被移除
+        # 直接使用trainer_opt的属性创建Trainer
+        trainer_config = {}
+        # 将argparse.Namespace转换为字典
+        for key, value in vars(trainer_opt).items():
+            if key != 'logger' and key != 'callbacks':  # 这些已经在trainer_kwargs中
+                trainer_config[key] = value
+                
+        # 合并配置
+        trainer_config.update(trainer_kwargs)
+        
+        # 创建Trainer
+        trainer = Trainer(**trainer_config)
         trainer.logdir = logdir  ###
 
         # data
@@ -766,8 +842,20 @@ if __name__ == "__main__":
                 raise
         if not opt.no_test and not trainer.interrupted:
             trainer.test(model, data)
-    except Exception:
-        if opt.debug and trainer.global_rank == 0:
+    except Exception as e:
+        # 初始化trainer变量，防止未定义错误
+        trainer = None
+        print(f"Exception occurred: {e}")
+        
+        # 尝试获取trainer变量
+        try:
+            # 如果trainer已经定义在当前作用域中
+            if 'trainer' in locals() and locals()['trainer'] is not None:
+                trainer = locals()['trainer']
+        except Exception:
+            pass
+            
+        if opt.debug and trainer is not None and trainer.global_rank == 0:
             try:
                 import pudb as debugger
             except ImportError:
@@ -775,11 +863,15 @@ if __name__ == "__main__":
             debugger.post_mortem()
         raise
     finally:
+        # 确保trainer存在
+        if 'trainer' not in locals() or trainer is None:
+            trainer = None
+            
         # move newly created debug project to debug_runs
-        if opt.debug and not opt.resume and trainer.global_rank == 0:
+        if opt.debug and not opt.resume and trainer is not None and trainer.global_rank == 0:
             dst, name = os.path.split(logdir)
             dst = os.path.join(dst, "debug_runs", name)
             os.makedirs(os.path.split(dst)[0], exist_ok=True)
             os.rename(logdir, dst)
-        if trainer.global_rank == 0:
+        if trainer is not None and trainer.global_rank == 0:
             print(trainer.profiler.summary())

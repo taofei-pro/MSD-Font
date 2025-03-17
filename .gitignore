@@ -1,0 +1,39 @@
+# Python缓存文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# 日志和临时文件
+logs/
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+
+# 特别指定的大文件和模型文件
+v2-1_512-ema-pruned.ckpt
+*.ckpt
+*.pth
+
+# 虚拟环境
+venv/
+env/
+.env/
+
+# IDE相关文件
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 字体文件
+fontdata_example/chn/ttfs/train_font
+
+font_generation/output*

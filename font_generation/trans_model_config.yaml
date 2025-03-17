@@ -1,0 +1,66 @@
+model:
+  target: ldm.models.diffusion.MSDFont_ddpm.MSDFont_train_stage1_trans_model_Gencase
+  params:
+    first_stage_config:
+      target: ldm.models.autoencoder.AutoencoderKL
+      params:
+        embed_dim: 4
+        ckpt_path: /home/zihun/workspace/MSD-Font/checkpoints/v2-1_512-ema-pruned.ckpt
+        ddconfig:
+          double_z: true
+          z_channels: 4
+          resolution: 256
+          in_channels: 3
+          out_ch: 3
+          ch: 128
+          ch_mult:
+          - 1
+          - 2
+          - 4
+          - 4
+          num_res_blocks: 2
+          attn_resolutions: []
+          dropout: 0.0
+        lossconfig:
+          target: torch.nn.Identity
+    cond_stage_config: __is_first_stage__
+    style_stage_config:
+      target: ldm.models.MSDFont_encoder.miniUNet_enc_128
+    num_timesteps_cond: 1
+    cond_stage_key: image
+    cond_stage_trainable: false
+    concat_mode: true
+    cond_stage_forward: null
+    conditioning_key: concat
+    scale_factor: 1.0
+    scale_by_std: false
+    unet_config:
+      target: ldm.modules.diffusionmodules.openaimodel.UNetModel
+      params:
+        use_checkpoint: true
+        use_fp16: false
+        image_size: 16
+        in_channels: 4
+        out_channels: 4
+        model_channels: 128
+        attention_resolutions:
+        - 2
+        - 1
+        - 1
+        num_res_blocks: 2
+        channel_mult:
+        - 1
+        - 1
+        - 2
+        - 2
+        num_head_channels: 64
+        use_spatial_transformer: true
+        use_linear_in_transformer: true
+        transformer_depth: 1
+        context_dim: 128
+        legacy: false
+    timesteps: 1000
+    beta_schedule: linear
+    linear_start: 0.00085
+    linear_end: 0.012
+    parameterization: x0

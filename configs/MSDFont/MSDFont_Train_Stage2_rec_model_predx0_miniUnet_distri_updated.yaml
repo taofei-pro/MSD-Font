@@ -1,6 +1,6 @@
 model:
   base_learning_rate: 8.0e-7
-  target: ldm.models.diffusion.MSDFont_ddpm_eval.MSDFont_model_eval_Gencase
+  target: ldm.models.diffusion.MSDFont_ddpm_distri.MSDFont_train_stage2_rec_model_distri
   params:
     parameterization: "x0"
     linear_start: 0.00085
@@ -19,7 +19,8 @@ model:
     monitor: val/loss_simple_ema
     scale_factor: 0.18215
     use_ema: False 
-    ckpt_path: /home/zihun/workspace/MSD-Font/checkpoints/v2-1_512-ema-pruned.ckpt
+    # 使用第一阶段训练的最终模型
+    ckpt_path: /home/zihun/workspace/MSD-Font/logs/2025-03-12T18-11-23_MSDFont_Train_Stage1_trans_model_predx0_miniUnet/checkpoints/last.ckpt
 
     unet_config:
       target: ldm.modules.diffusionmodules.openaimodel.UNetModel
@@ -43,7 +44,8 @@ model:
     first_stage_config:
       target: ldm.models.autoencoder.AutoencoderKL
       params:
-        ckpt_path: /home/zihun/workspace/MSD-Font/checkpoints/v2-1_512-ema-pruned.ckpt
+        # 使用第一阶段训练的最终模型
+        ckpt_path: /home/zihun/workspace/MSD-Font/logs/2025-03-12T18-11-23_MSDFont_Train_Stage1_trans_model_predx0_miniUnet/checkpoints/last.ckpt
         embed_dim: 4
         monitor: val/rec_loss
         ddconfig:
@@ -69,6 +71,10 @@ model:
     style_stage_config:
       target: ldm.models.MSDFont_encoder.miniUNet_enc_128
 
+    trans_model_config:
+      config_path: "configs/MSDFont/MSDFont_Train_Stage1_trans_model_predx0_miniUnet.yaml"
+      model_path: "/home/zihun/workspace/MSD-Font/logs/2025-03-12T18-11-23_MSDFont_Train_Stage1_trans_model_predx0_miniUnet/checkpoints/last.ckpt"
+
 data:
   target: main.DataModuleFromConfig
   params:
@@ -79,9 +85,9 @@ data:
       target: taming.data.MSDFont_data_ttf.FontTTFTrain
       params:
         size: 128
-        data_dirs: "/home/fubin/FontData/chn/ttfs/train_font"
-        train_chars: "/home/fubin/FontData/chn/train_chars.json"
-        source_path: "/home/fubin/FontData/chn/source.ttf"
+        data_dirs: "/home/zihun/workspace/MSD-Font/fontdata_example/chn/ttfs/train_font"
+        train_chars: "/home/zihun/workspace/MSD-Font/fontdata_example/chn/train_chars.json"
+        source_path: "/home/zihun/workspace/MSD-Font/fontdata_example/chn/source.ttf"
 
 
 lightning:
@@ -92,6 +98,18 @@ lightning:
         batch_frequency: 5000
         max_images: 8
         increase_log_steps: False
+    model_checkpoint:
+      target: pytorch_lightning.callbacks.ModelCheckpoint
+      params:
+        dirpath: null  # 自动设置
+        filename: '{epoch}-{step}'
+        verbose: True
+        save_last: True
+        save_top_k: 3  # 只保存最好的3个模型
+        monitor: 'val/loss_simple_ema'  # 监控这个指标
+        mode: 'min'  # 越小越好
+        every_n_epochs: 10  # 每10个epoch保存一次
 
   trainer:
     benchmark: True
+    max_epochs: 200  # 限制最大训练轮数

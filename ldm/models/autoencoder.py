@@ -50,7 +50,23 @@ class AutoencoderKL(pl.LightningModule):
             self.init_from_ckpt(ckpt_path, ignore_keys=ignore_keys)
 
     def init_from_ckpt(self, path, ignore_keys=list()):
-        sd = torch.load(path, map_location="cpu")["state_dict"]
+        import torch
+        try:
+            # 首先尝试使用weights_only=False加载
+            sd = torch.load(path, map_location="cpu", weights_only=False)["state_dict"]
+        except Exception as e:
+            print(f"Failed to load with weights_only=False: {e}")
+            try:
+                # 如果失败，尝试添加安全全局变量
+                import torch.serialization
+                from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
+                with torch.serialization.safe_globals([ModelCheckpoint]):
+                    sd = torch.load(path, map_location="cpu", weights_only=True)["state_dict"]
+            except Exception as e2:
+                print(f"Failed to load with safe_globals: {e2}")
+                # 最后尝试直接加载权重
+                sd = torch.load(path, map_location="cpu", weights_only=True)["state_dict"]
+        
         keys = list(sd.keys())
         for k in keys:
             for ik in ignore_keys:

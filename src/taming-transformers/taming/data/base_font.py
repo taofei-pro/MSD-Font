@@ -23,7 +23,21 @@ def read_font(fontfile, size=150):
     return font
 
 def render(font, char, size=(128, 128), pad=20):
-    width, height = font.getsize(char)
+    # 在新版本的PIL库中，getsize方法已被弃用，使用getbbox代替
+    try:
+        # 尝试使用新的API
+        bbox = font.getbbox(char)  # 返回(left, top, right, bottom)
+        width = bbox[2] - bbox[0]
+        height = bbox[3] - bbox[1]
+    except AttributeError:
+        # 如果是旧版本PIL，回退到getsize
+        try:
+            width, height = font.getsize(char)
+        except Exception as e:
+            print(f"Error getting font size: {e}")
+            # 提供一个合理的默认值
+            width, height = 80, 80
+    
     max_size = max(width, height)
 
     if width < height:
