@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # 设置基本参数
-CONFIG_PATH="configs/MSDFont/MSDFont_Train_Stage2_rec_model_predx0_miniUnet_distri.yaml"
+CONFIG_PATH="configs/MSDFont/MSDFont_Train_Stage1_rec_model_predx0_miniUnet.yaml"
 GPUS="0,"
 MIN_FREE_SPACE_GB=30
 CHECK_INTERVAL_SECONDS=600
-LOGS_DIR="/home/zihun/workspace/MSD-Font/StableDiffusion/logs"
+LOGS_DIR="/home/zihun/workspace/MSD-Font/StableDiffusion/logs/stage1_2"
 
 
 # 检查磁盘空间函数
@@ -59,7 +59,7 @@ main() {
     fi
     
     # 启动训练
-    echo "启动第二阶段训练..."
+    echo "启动训练..."
     conda activate MSDFont
     
     # 在后台运行训练
@@ -86,7 +86,7 @@ main() {
     wait $TRAIN_PID
     EXIT_CODE=$?
     
-    echo "第二阶段训练结束，退出代码: $EXIT_CODE"
+    echo "训练结束，退出代码: $EXIT_CODE"
     return $EXIT_CODE
 }
 

@@ -20,7 +20,7 @@ model:
     scale_factor: 0.18215
     use_ema: False 
     # 使用第一阶段训练的最终模型
-    ckpt_path: /home/zihun/workspace/MSD-Font/StableDiffusion/logs/2025-03-12T18-11-23_MSDFont_Train_Stage1_trans_model_predx0_miniUnet/checkpoints/last.ckpt
+    ckpt_path: /home/zihun/workspace/MSD-Font/StableDiffusion/logs/stage1_2/checkpoints/last.ckpt
 
     unet_config:
       target: ldm.modules.diffusionmodules.openaimodel.UNetModel
@@ -45,7 +45,7 @@ model:
       target: ldm.models.autoencoder.AutoencoderKL
       params:
         # 使用第一阶段训练的最终模型
-        ckpt_path: /home/zihun/workspace/MSD-Font/StableDiffusion/logs/2025-03-12T18-11-23_MSDFont_Train_Stage1_trans_model_predx0_miniUnet/checkpoints/last.ckpt
+        ckpt_path: /home/zihun/workspace/MSD-Font/StableDiffusion/logs/stage1_2/checkpoints/last.ckpt
         embed_dim: 4
         monitor: val/rec_loss
         ddconfig:
@@ -73,7 +73,7 @@ model:
 
     trans_model_config:
       config_path: "configs/MSDFont/MSDFont_Train_Stage1_trans_model_predx0_miniUnet.yaml"
-      model_path: "/home/zihun/workspace/MSD-Font/StableDiffusion/logs/2025-03-12T18-11-23_MSDFont_Train_Stage1_trans_model_predx0_miniUnet/checkpoints/last.ckpt"
+      model_path: "/home/zihun/workspace/MSD-Font/StableDiffusion/logs/stage1_1/checkpoints/last.ckpt"
 
 data:
   target: main.DataModuleFromConfig
