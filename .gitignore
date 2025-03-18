@@ -6,7 +6,6 @@ __pycache__/
 .Python
 
 # 日志和临时文件
-logs/
 *.log
 *.tmp
 *.bak
