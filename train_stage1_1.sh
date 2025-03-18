@@ -62,7 +62,7 @@ main() {
     
     # 启动训练
     echo "启动训练..."
-    conda activate MSDFont
+    # conda activate MSDFont
     
     # 在后台运行训练
     python main.py --base $CONFIG_PATH -t --gpus $GPUS &
