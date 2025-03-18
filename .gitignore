@@ -31,7 +31,5 @@ env/
 .DS_Store
 Thumbs.db
 
-# 字体文件
-fontdata_example/chn/ttfs/train_font
 
 font_generation/output*

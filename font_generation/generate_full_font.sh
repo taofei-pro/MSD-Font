@@ -10,8 +10,8 @@ OUTPUT_DIR="/home/zihun/workspace/MSD-Font/font_generation/output"
 CHAR_LIST="/home/zihun/workspace/MSD-Font/font_generation/all_chars.txt"
 CONFIG_REC="/home/zihun/workspace/MSD-Font/configs/MSDFont/MSDFont_Eval_rec_model_predx0_miniUnet.yaml"
 CONFIG_TRANS="/home/zihun/workspace/MSD-Font/configs/MSDFont/MSDFont_Eval_trans_model_predx0_miniUnet.yaml"
-REC_MODEL="/home/zihun/workspace/MSD-Font/logs/2025-03-13T12-17-14_MSDFont_Train_Stage2_rec_model_predx0_miniUnet_distri/checkpoints/last.ckpt"
-TRANS_MODEL="/home/zihun/workspace/MSD-Font/logs/2025-03-12T18-11-23_MSDFont_Train_Stage1_trans_model_predx0_miniUnet/checkpoints/last.ckpt"
+REC_MODEL="/home/zihun/workspace/MSD-Font/StableDiffusion/logs/2025-03-13T12-17-14_MSDFont_Train_Stage2_rec_model_predx0_miniUnet_distri/checkpoints/last.ckpt"
+TRANS_MODEL="/home/zihun/workspace/MSD-Font/StableDiffusion/logs/2025-03-12T18-11-23_MSDFont_Train_Stage1_trans_model_predx0_miniUnet/checkpoints/last.ckpt"
 
 # 创建必要的目录
 mkdir -p "$OUTPUT_DIR"

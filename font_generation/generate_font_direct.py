@@ -219,13 +219,13 @@ def main():
     parser.add_argument(
         "--rec_model",
         type=str,
-        default="/home/zihun/workspace/MSD-Font/logs/2025-03-13T12-17-14_MSDFont_Train_Stage2_rec_model_predx0_miniUnet_distri/checkpoints/last.ckpt",
+        default="/home/zihun/workspace/MSD-Font/StableDiffusion/logs/2025-03-13T12-17-14_MSDFont_Train_Stage2_rec_model_predx0_miniUnet_distri/checkpoints/last.ckpt",
         help="重建模型路径",
     )
     parser.add_argument(
         "--trans_model",
         type=str,
-        default="/home/zihun/workspace/MSD-Font/logs/2025-03-12T18-11-23_MSDFont_Train_Stage1_trans_model_predx0_miniUnet/checkpoints/last.ckpt",
+        default="/home/zihun/workspace/MSD-Font/StableDiffusion/logs/2025-03-12T18-11-23_MSDFont_Train_Stage1_trans_model_predx0_miniUnet/checkpoints/last.ckpt",
         help="转换模型路径",
     )
 

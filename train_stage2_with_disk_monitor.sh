@@ -5,10 +5,8 @@ CONFIG_PATH="configs/MSDFont/MSDFont_Train_Stage2_rec_model_predx0_miniUnet_dist
 GPUS="0,"
 MIN_FREE_SPACE_GB=30
 CHECK_INTERVAL_SECONDS=600
-LOGS_DIR="/home/zihun/workspace/MSD-Font/logs"
+LOGS_DIR="/home/zihun/workspace/MSD-Font/StableDiffusion/logs"
 
-# 创建日志目录
-mkdir -p $LOGS_DIR
 
 # 检查磁盘空间函数
 check_disk_space() {
