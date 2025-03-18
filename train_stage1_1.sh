@@ -5,7 +5,7 @@ CONFIG_PATH="configs/MSDFont/MSDFont_Train_Stage1_trans_model_predx0_miniUnet.ya
 GPUS="0,"
 MIN_FREE_SPACE_GB=30
 CHECK_INTERVAL_SECONDS=600
-LOGS_DIR="/home/zihun/workspace/MSD-Font/StableDiffusion/logs"
+LOGS_DIR="/home/zihun/workspace/MSD-Font/StableDiffusion/logs/stage1_1"
 
 
 # 检查磁盘空间函数
