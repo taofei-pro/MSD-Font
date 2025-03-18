@@ -79,9 +79,9 @@ data:
       target: taming.data.MSDFont_data_ttf.FontTTFTrain
       params:
         size: 128
-        data_dirs: "/home/zihun/workspace/MSD-Font/fontdata_example/chn/ttfs/train_font"
-        train_chars: "/home/zihun/workspace/MSD-Font/fontdata_example/chn/train_chars.json"
-        source_path: "/home/zihun/workspace/MSD-Font/fontdata_example/chn/source.ttf"
+        data_dirs: "/home/zihun/workspace/MSD-Font/FontData/chn/ttfs/train_font"
+        train_chars: "/home/zihun/workspace/MSD-Font/FontData/chn/train_chars.json"
+        source_path: "/home/zihun/workspace/MSD-Font/FontData/chn/source.ttf"
 
 
 lightning:
