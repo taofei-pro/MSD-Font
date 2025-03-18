@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 设置基本参数
-CONFIG_PATH="configs/MSDFont/MSDFont_Train_Stage2_rec_model_predx0_miniUnet_distri_updated.yaml"
+CONFIG_PATH="configs/MSDFont/MSDFont_Train_Stage2_rec_model_predx0_miniUnet_distri.yaml"
 GPUS="0,"
 MIN_FREE_SPACE_GB=30
 CHECK_INTERVAL_SECONDS=600
