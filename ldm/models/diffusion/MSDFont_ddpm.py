@@ -9,18 +9,7 @@ from functools import partial
 import itertools
 from tqdm import tqdm
 from torchvision.utils import make_grid
-# 兼容新旧版本的PyTorch Lightning
-try:
-    # 新版本的导入路径
-    from pytorch_lightning.utilities.rank_zero import rank_zero_only
-except ImportError:
-    try:
-        # 旧版本的导入路径
-        from pytorch_lightning.utilities.distributed import rank_zero_only
-    except ImportError:
-        # 如果两个导入都失败，则创建一个空的装饰器
-        def rank_zero_only(fn):
-            return fn
+from pytorch_lightning.utilities.distributed import rank_zero_only
 from omegaconf import ListConfig
 
 from ldm.util import log_txt_as_img, exists, default, ismap, isimage, mean_flat, count_params, instantiate_from_config
@@ -45,23 +34,7 @@ class MSDFont_train_stage1_rec_model(LatentDiffusion):
 
     @torch.no_grad()
     def init_from_ckpt(self, path, ignore_keys=list(), only_model=False):
-        try:
-            # 首先尝试使用weights_only=False加载
-            sd = torch.load(path, map_location="cpu", weights_only=False)
-        except Exception as e:
-            print(f"Failed to load with weights_only=False: {e}")
-            try:
-                # 如果失败，尝试添加安全全局变量
-                import torch.serialization
-                import numpy.core.multiarray
-                from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
-                with torch.serialization.safe_globals([ModelCheckpoint, numpy.core.multiarray.scalar]):
-                    sd = torch.load(path, map_location="cpu", weights_only=True)
-            except Exception as e2:
-                print(f"Failed to load with safe_globals: {e2}")
-                # 最后尝试直接加载，不使用weights_only参数
-                sd = torch.load(path, map_location="cpu")
-        
+        sd = torch.load(path, map_location="cpu")
         if "state_dict" in list(sd.keys()):
             sd = sd["state_dict"]
         keys = list(sd.keys())
@@ -500,7 +473,6 @@ class MSDFont_train_stage1_trans_model_Gencase(LatentDiffusion):
         super().__init__(*args, **kwargs)
         self.model = DiffusionWrapper_MSDFont_train_stage1_trans_model_Gencase(kwargs['unet_config'], kwargs['conditioning_key'])
         self.instantiate_style_stage(style_stage_config)
-        self.shorten_cond_schedule = False
 
     def instantiate_style_stage(self, config):
         model = instantiate_from_config(config)
@@ -508,26 +480,11 @@ class MSDFont_train_stage1_trans_model_Gencase(LatentDiffusion):
 
     @torch.no_grad()
     def init_from_ckpt(self, path, ignore_keys=list(), only_model=False):
-        try:
-            # 首先尝试使用weights_only=False加载
-            sd = torch.load(path, map_location="cpu", weights_only=False)
-        except Exception as e:
-            print(f"Failed to load with weights_only=False: {e}")
-            try:
-                # 如果失败，尝试添加安全全局变量
-                import torch.serialization
-                import numpy.core.multiarray
-                from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
-                with torch.serialization.safe_globals([ModelCheckpoint, numpy.core.multiarray.scalar]):
-                    sd = torch.load(path, map_location="cpu", weights_only=True)
-            except Exception as e2:
-                print(f"Failed to load with safe_globals: {e2}")
-                # 最后尝试直接加载，不使用weights_only参数
-                sd = torch.load(path, map_location="cpu")
-        
+        sd = torch.load(path, map_location="cpu")
         if "state_dict" in list(sd.keys()):
             sd = sd["state_dict"]
         keys = list(sd.keys())
+
         # #################################################
         # # ignore attn2 parameters, load pretrained diffuser model (e.g., SD released model)
         # ignore_keys = []
@@ -600,22 +557,6 @@ class MSDFont_train_stage1_trans_model_Gencase(LatentDiffusion):
         if len(unexpected) > 0:
             print(f"\nUnexpected Keys:\n {unexpected}")
 
-
-    @rank_zero_only
-    @torch.no_grad()
-    def on_train_batch_start(self, batch, batch_idx, dataloader_idx=0):
-        # only for very first batch
-        if self.scale_by_std and self.current_epoch == 0 and self.global_step == 0 and batch_idx == 0 and not self.restarted_from_ckpt:
-            assert self.scale_factor == 1., 'rather not use custom rescaling and std-rescaling simultaneously'
-            # set rescale weight to 1./std of encodings
-            print("### USING STD-RESCALING ###")
-            x = super().get_input(batch, self.first_stage_key)
-            x = x.to(self.device)
-            encoder_posterior = self.encode_first_stage(x)
-            z = self.get_first_stage_encoding(encoder_posterior).detach()
-            del self.scale_factor
-            self.register_buffer('scale_factor', 1. / z.flatten().std())
-            print(f"setting self.scale_factor to {self.scale_factor}")
     def configure_optimizers(self):
         lr = self.learning_rate
         params = list(self.model.parameters())
