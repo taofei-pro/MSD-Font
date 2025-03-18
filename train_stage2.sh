@@ -7,6 +7,8 @@ MIN_FREE_SPACE_GB=30
 CHECK_INTERVAL_SECONDS=600
 LOGS_DIR="/home/zihun/workspace/MSD-Font/StableDiffusion/logs/stage2"
 
+# 创建日志目录
+mkdir -p $LOGS_DIR
 
 # 检查磁盘空间函数
 check_disk_space() {
